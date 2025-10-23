@@ -1,0 +1,27 @@
+# Unity auto-generated folders
+Library/
+Temp/
+Obj/
+Build/
+Builds/
+Logs/
+UserSettings/
+MemoryCaptures/
+build_Run/
+*.apk
+*.aab
+*.keystore
+
+# IDE-specific files
+.vs/
+.vscode/
+.idea/
+*.sln
+*.csproj
+*.user
+*.pidb
+*.suo
+*.unityproj
+*.booproj
+*.svd
+*.userprefs
