@@ -135,8 +135,8 @@ GameObject:
   - component: {fileID: 43484440}
   - component: {fileID: 43484439}
   - component: {fileID: 43484438}
-  - component: {fileID: 43484443}
   - component: {fileID: 43484444}
+  - component: {fileID: 43484445}
   m_Layer: 0
   m_Name: XR Origin
   m_TagString: Untagged
@@ -199,7 +199,7 @@ MonoBehaviour:
   m_Camera: {fileID: 1956999882}
   m_OriginBaseGameObject: {fileID: 43484436}
   m_CameraFloorOffsetObject: {fileID: 1549431273}
-  m_RequestedTrackingOriginMode: 0
+  m_RequestedTrackingOriginMode: 2
   m_CameraYOffset: 1.1176
 --- !u!4 &43484442
 Transform:
@@ -217,25 +217,6 @@ Transform:
   - {fileID: 1549431274}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &43484443
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 43484436}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 26b4db400e98cbf4a8fcc0c90c3e8075, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  manager: {fileID: 1802203113}
-  raycastManager: {fileID: 43484440}
-  yellowTreasurePrefab: {fileID: 1581023083059270580, guid: 0a6d6f8f218aac641881e2e0d0f5db18, type: 3}
-  redTreasurePrefab: {fileID: 1581023083059270580, guid: e9d8cc10d32ebe743bbeaf9d77795800, type: 3}
-  placeRed: 1
-  maxTotalPlacements: 10
-  mimicChancePercent: 30
 --- !u!114 &43484444
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -249,6 +230,23 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   toggleRed: {fileID: 477427367}
+  placer: {fileID: 0}
+--- !u!114 &43484445
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 43484436}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8f7768aed406f4c4793ab391fa49a1b3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  raycastManager: {fileID: 43484440}
+  manager: {fileID: 1802203113}
+  yellowTreasurePrefab: {fileID: 1581023083059270580, guid: 0a6d6f8f218aac641881e2e0d0f5db18, type: 3}
+  maxTotalPlacements: 10
 --- !u!1 &273981228
 GameObject:
   m_ObjectHideFlags: 0
@@ -470,7 +468,7 @@ MonoBehaviour:
   onValueChanged:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 43484443}
+      - m_Target: {fileID: 0}
         m_TargetAssemblyTypeName: ARTapToPlaceTreasure, Assembly-CSharp
         m_MethodName: SetPlaceRed
         m_Mode: 6
@@ -604,10 +602,10 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 477427364}
-        m_TargetAssemblyTypeName: UnityEngine.GameObject, UnityEngine
-        m_MethodName: SetActive
-        m_Mode: 6
+      - m_Target: {fileID: 1802203113}
+        m_TargetAssemblyTypeName: TreasureManager, Assembly-CSharp
+        m_MethodName: StartGame
+        m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
           m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
@@ -956,7 +954,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 1
+  m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
@@ -1990,13 +1988,13 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 1802203111}
-        m_TargetAssemblyTypeName: 
-        m_MethodName: 
+      - m_Target: {fileID: 1802203113}
+        m_TargetAssemblyTypeName: TreasureManager, Assembly-CSharp
+        m_MethodName: CollectSelected
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: 
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
           m_IntArgument: 0
           m_FloatArgument: 0
           m_StringArgument: 
@@ -2236,6 +2234,55 @@ RectTransform:
   m_AnchoredPosition: {x: 150, y: -60}
   m_SizeDelta: {x: 200, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!1 &1791220717
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1791220719}
+  - component: {fileID: 1791220720}
+  m_Layer: 0
+  m_Name: _AutoSpawn
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1791220719
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1791220717}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 476, y: 378, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1791220720
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1791220717}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cfeccbf8d3a209541b4b63dcd7f93211, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  planeManager: {fileID: 43484439}
+  placer: {fileID: 43484445}
+  spawnCount: 10
+  delayBetweenSpawns: 2
+  minDistanceBetweenTreasures: 1
 --- !u!1 &1802203111
 GameObject:
   m_ObjectHideFlags: 0
@@ -2288,13 +2335,7 @@ MonoBehaviour:
   finalScoreText: {fileID: 1122867103}
   maxTotalPlacements: 10
   gameDurationSeconds: 60
-  yellowMat: {fileID: 2100000, guid: c080ee463a006b2459ad2ef019065760, type: 2}
-  redMat: {fileID: 2100000, guid: 8fa111c7c58821e47a2cf9cac0b6474c, type: 2}
-  mimicRevealSeconds: 1
-  mimicTapShakeSeconds: 1
-  mimicTapShakeAmount: 0.06
-  mimicTapShakeSpeed: 80
-  placer: {fileID: 43484443}
+  placer: {fileID: 0}
 --- !u!4 &1802203114
 Transform:
   m_ObjectHideFlags: 0
@@ -2325,6 +2366,7 @@ GameObject:
   - component: {fileID: 1956999879}
   - component: {fileID: 1956999878}
   - component: {fileID: 1956999883}
+  - component: {fileID: 1956999884}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -2551,6 +2593,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6e3c44306fb1e439a9f18b2212b8ab70, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!114 &1956999884
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1956999876}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: adba1067863ff204894e59bd4263513d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  manager: {fileID: 1802203113}
+  rayDistance: 100
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -2562,3 +2618,4 @@ SceneRoots:
   - {fileID: 1186863214}
   - {fileID: 1708225995}
   - {fileID: 1802203114}
+  - {fileID: 1791220719}

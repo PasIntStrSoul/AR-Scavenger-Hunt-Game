@@ -11,14 +11,17 @@ public class Treasure : MonoBehaviour
     [Header("Mimic Settings")]
     public bool isMimic = false;
 
-    // We will color ALL renderers under this treasure (Cube + lid etc.)
+    // ---------- Materials ----------
+    [Header("Materials")]
+    public Material yellowMat;
+    public Material redMat;
+
     Renderer[] rends;
 
     void Awake()
     {
         baseScale = transform.localScale;
 
-        // Grab every renderer in children (including inactive)
         rends = GetComponentsInChildren<Renderer>(true);
     }
 
@@ -34,7 +37,8 @@ public class Treasure : MonoBehaviour
         transform.localScale = baseScale;
     }
 
-    public void SetYellow(Material yellowMat)
+    // 🔥 Set Yellow
+    public void SetYellow()
     {
         if (yellowMat == null || rends == null) return;
 
@@ -44,13 +48,23 @@ public class Treasure : MonoBehaviour
         }
     }
 
-    public void SetRed(Material redMat)
+    // 🔥 Set Red (USED BY MANAGER)
+    public void SetRed()
     {
         if (redMat == null || rends == null) return;
 
         foreach (var r in rends)
         {
             if (r != null) r.material = redMat;
+        }
+    }
+    public void SetGreen()
+    {
+        if (yellowMat == null || rends == null) return;
+
+        foreach (var r in rends)
+        {
+            if (r != null) r.material.color = Color.green;
         }
     }
 }

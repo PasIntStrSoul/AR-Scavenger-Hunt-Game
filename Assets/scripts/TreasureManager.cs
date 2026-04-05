@@ -13,51 +13,28 @@ public class TreasureManager : MonoBehaviour
     public Button startButton;
     public Button restartButton;
 
-    [Header("Timer UI (Optional but recommended)")]
+    [Header("Timer UI")]
     public TextMeshProUGUI timerCenterText;
 
-    [Header("Final Score UI (Optional)")]
+    [Header("Final Score UI")]
     public TextMeshProUGUI finalScoreText;
 
     [Header("Rules")]
     public int maxTotalPlacements = 10;
     public int gameDurationSeconds = 60;
 
-    [Header("Mimic Visuals")]
-    public Material yellowMat;              // assign in Inspector
-    public Material redMat;                 // assign in Inspector
-    public float mimicRevealSeconds = 1.0f; // how long mimic stays red before disappearing
-
-    [Header("Mimic Tap Shake (VERY VISIBLE)")]
-    [Tooltip("How long the mimic shakes after you TAP/select it (before collect).")]
-    public float mimicTapShakeSeconds = 0.6f;
-
-    [Tooltip("How far it shakes side-to-side (try 0.02 to 0.06).")]
-    public float mimicTapShakeAmount = 0.035f;
-
-    [Tooltip("How fast it shakes (try 40 to 80).")]
-    public float mimicTapShakeSpeed = 55f;
-
     [Header("References")]
-    public ARTapToPlaceTreasure placer; // drag XR Origin (with ARTapToPlaceTreasure) here
+    public ARTapToPlaceTreasure placer;
 
-    // Counters
-    int placedYellow;
-    int collectedYellow, collectedRed;
+    int placedTotal;
+    int collectedGood, collectedMimic;
     int score;
 
-    // Selection
     Treasure selected;
 
-    // Game state
     bool gameRunning = false;
     float timeLeft = 0f;
     Coroutine timerRoutine;
-
-    // Tap-shake control
-    Coroutine currentShakeRoutine;
-    Transform shakeTarget;
-    Vector3 shakeStartLocalPos;
 
     void Start()
     {
@@ -65,147 +42,147 @@ public class TreasureManager : MonoBehaviour
         if (startButton) startButton.onClick.AddListener(StartGame);
         if (restartButton) restartButton.onClick.AddListener(RestartGame);
 
-        // Initial UI state
-        if (restartButton) restartButton.gameObject.SetActive(false);
+        if (collectButton) collectButton.interactable = false;
         if (startButton) startButton.gameObject.SetActive(false);
-
-        SetTimerVisible(false);
-
+        if (restartButton) restartButton.gameObject.SetActive(false);
         if (finalScoreText) finalScoreText.gameObject.SetActive(false);
 
-        // Gameplay UI visible in placement phase
-        SetGameplayUIVisible(true);
-
+        SetTimerVisible(false);
         UpdateUI();
     }
 
-    // Called by ARTapToPlaceTreasure when a treasure is spawned
-    // Negrin rule: everything looks yellow at placement time
-    public void RecordPlaced(bool isRed)
+    public void RecordPlaced(bool isMimic)
     {
-        placedYellow++;
+        placedTotal++;
 
-        // show Start once we placed all
-        if (TotalPlaced() >= maxTotalPlacements)
+        if (placedTotal >= maxTotalPlacements)
         {
-            if (startButton) startButton.gameObject.SetActive(true);
+            if (startButton != null)
+                startButton.gameObject.SetActive(true);
         }
 
         UpdateUI();
     }
 
-    // Called when a treasure is collected
-    // Here, isRed means "isMimic" (bad)
-    public void RecordCollected(bool isRed)
+    public void RecordCollected(bool isMimic)
     {
-        if (isRed) collectedRed++;
-        else collectedYellow++;
+        if (isMimic) collectedMimic++;
+        else collectedGood++;
 
         UpdateUI();
     }
 
-    // Called by TouchSelect when you tap a treasure
     public void SetSelected(Treasure t)
     {
-        if (!gameRunning)
-        {
-            StopAnyShake();
-            if (selected) selected.Deselect();
-            selected = null;
-            if (collectButton) collectButton.interactable = false;
-            return;
-        }
+        if (!gameRunning) return;
+        if (t == null) return;
 
-        // Deselect old
-        if (selected && selected != t)
-        {
-            StopAnyShake();
+        if (selected != null)
             selected.Deselect();
-        }
 
         selected = t;
+        selected.Select();
 
-        if (selected)
+        // 🔥 NEW: If mimic → shake on select
+        if (selected.isMimic)
         {
-            selected.Select();
-
-            // ✅ VERY visible shake ONLY for mimics (on tap/select)
-            if (selected.isMimic)
-                StartMimicTapShake(selected);
-            else
-                StopAnyShake();
+            StartCoroutine(ShakeTreasure(selected.transform, 0.4f, 0.05f));
         }
 
-        UpdateUI();
+        if (collectButton)
+            collectButton.interactable = true;
     }
 
-    void CollectSelected()
+    // 🔥 UPDATED: Use coroutine instead of instant destroy
+    public void CollectSelected()
     {
         if (!gameRunning) return;
         if (!selected) return;
 
-        // Stop tap shake cleanly
-        StopAnyShake();
+        StartCoroutine(HandleTreasureCollection(selected));
 
-        bool isMimic = selected.isMimic;
-
-        // ✅ Freeze idle motion BEFORE reveal/destroy (prevents weird “blink/disappear”)
-        var idle = selected.GetComponent<TreasureIdleMotion>();
-        if (idle != null) idle.StopMotion();
-
-        // Update score immediately
-        score += isMimic ? -1 : 1;
-        RecordCollected(isMimic);
-
-        // Reveal mimic (turn red briefly) then destroy
-        StartCoroutine(RevealThenDestroy(selected, isMimic));
-
-        // Clear current selection immediately
         selected = null;
-        UpdateUI();
+
+        if (collectButton)
+            collectButton.interactable = false;
     }
 
-    IEnumerator RevealThenDestroy(Treasure t, bool isMimic)
+    // 🔥 NEW: Handles mimic behavior
+    IEnumerator HandleTreasureCollection(Treasure t)
     {
-        if (t == null) yield break;
+        bool isMimic = t.isMimic;
 
         if (isMimic)
         {
-            // ✅ TURN RED IMMEDIATELY (you had this working, keep it)
-            if (redMat != null) t.SetRed(redMat);
+            Debug.Log("MIMIC ❌");
 
-            yield return new WaitForSeconds(mimicRevealSeconds);
+            // 🔥 ONLY TURN RED ON COLLECT
+            t.SetRed();
+
+            yield return new WaitForSeconds(0.5f);
+
+            score -= 1;
+        }
+        else
+        {
+            Debug.Log("GOOD ✅");
+
+            // 🔥 TURN GREEN
+            t.SetGreen();
+
+            yield return new WaitForSeconds(0.3f);
+
+            score += 1;
         }
 
-        if (t != null) Destroy(t.gameObject);
+        RecordCollected(isMimic);
 
-        // End if all collected
-        if (TotalPlaced() >= maxTotalPlacements && TotalCollected() >= TotalPlaced())
+        Destroy(t.gameObject);
+
+        UpdateUI();
+        // 🔥 NEW: End game early if all treasures collected
+        if ((collectedGood + collectedMimic) >= maxTotalPlacements)
         {
-            EndGame("All treasures collected!");
+            EndGame();
         }
     }
 
-    void StartGame()
+    // 🔥 NEW: Shake effect
+    IEnumerator ShakeTreasure(Transform target, float duration, float magnitude)
     {
-        if (TotalPlaced() < maxTotalPlacements) return;
+        Vector3 originalPos = target.localPosition;
+        float elapsed = 0f;
 
+        while (elapsed < duration)
+        {
+            float x = Random.Range(-1f, 1f) * magnitude;
+            float z = Random.Range(-1f, 1f) * magnitude;
+
+            target.localPosition = originalPos + new Vector3(x, 0, z);
+
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+
+        target.localPosition = originalPos;
+    }
+
+    public void StartGame()
+    {
         gameRunning = true;
 
         if (startButton) startButton.gameObject.SetActive(false);
         if (restartButton) restartButton.gameObject.SetActive(false);
-        if (finalScoreText) finalScoreText.gameObject.SetActive(false);
-
-        SetGameplayUIVisible(true);
 
         timeLeft = gameDurationSeconds;
+
         SetTimerVisible(true);
         UpdateTimerUI();
 
-        if (timerRoutine != null) StopCoroutine(timerRoutine);
-        timerRoutine = StartCoroutine(TimerCountdown());
+        if (timerRoutine != null)
+            StopCoroutine(timerRoutine);
 
-        UpdateUI();
+        timerRoutine = StartCoroutine(TimerCountdown());
     }
 
     IEnumerator TimerCountdown()
@@ -213,34 +190,22 @@ public class TreasureManager : MonoBehaviour
         while (gameRunning && timeLeft > 0f)
         {
             timeLeft -= Time.deltaTime;
-            if (timeLeft < 0f) timeLeft = 0f;
-
             UpdateTimerUI();
             yield return null;
         }
 
-        if (gameRunning)
-        {
-            EndGame("Time up!");
-        }
+        EndGame();
     }
 
-    void EndGame(string reason)
+    void EndGame()
     {
         gameRunning = false;
 
-        StopAnyShake();
-
         if (timerRoutine != null)
-        {
             StopCoroutine(timerRoutine);
-            timerRoutine = null;
-        }
 
-        // Hide gameplay UI on restart screen
-        SetGameplayUIVisible(false);
-
-        if (restartButton) restartButton.gameObject.SetActive(true);
+        if (restartButton)
+            restartButton.gameObject.SetActive(true);
 
         if (finalScoreText)
         {
@@ -253,140 +218,44 @@ public class TreasureManager : MonoBehaviour
     {
         gameRunning = false;
 
-        StopAnyShake();
-
-        if (timerRoutine != null)
-        {
-            StopCoroutine(timerRoutine);
-            timerRoutine = null;
-        }
-
-        // Reset counters
-        placedYellow = 0;
-        collectedYellow = 0;
-        collectedRed = 0;
         score = 0;
-
-        if (selected) selected.Deselect();
-        selected = null;
+        placedTotal = 0;
+        collectedGood = 0;
+        collectedMimic = 0;
 
         foreach (var t in FindObjectsOfType<Treasure>())
-        {
             Destroy(t.gameObject);
-        }
 
         if (placer != null)
-        {
             placer.ResetPlacementCount();
-        }
 
-        if (restartButton) restartButton.gameObject.SetActive(false);
         if (startButton) startButton.gameObject.SetActive(false);
-
+        if (restartButton) restartButton.gameObject.SetActive(false);
         if (finalScoreText) finalScoreText.gameObject.SetActive(false);
 
-        SetGameplayUIVisible(true);
         SetTimerVisible(false);
-
         UpdateUI();
     }
 
     void UpdateUI()
     {
-        if (collectButton)
-            collectButton.interactable = gameRunning && selected != null;
-
-        int remaining = maxTotalPlacements - TotalPlaced();
-        string placeMsg = remaining > 0 ? ("\nPlace " + remaining + " more") : "";
-
         if (scoreText)
         {
             scoreText.text =
                 "Score: " + score + "\n" +
-                "Placed: " + TotalPlaced() + "\n" +
-                "Collected  Good:" + collectedYellow + "  Mimic:" + collectedRed +
-                placeMsg;
+                "Placed: " + placedTotal + "\n" +
+                "Collected  Good:" + collectedGood + "  Mimic:" + collectedMimic;
         }
     }
 
     void UpdateTimerUI()
     {
         if (!timerCenterText) return;
-
-        int seconds = Mathf.CeilToInt(timeLeft);
-        timerCenterText.text = seconds.ToString();
+        timerCenterText.text = Mathf.CeilToInt(timeLeft).ToString();
     }
 
     void SetTimerVisible(bool on)
     {
         if (timerCenterText) timerCenterText.gameObject.SetActive(on);
-    }
-
-    void SetGameplayUIVisible(bool on)
-    {
-        if (scoreText) scoreText.gameObject.SetActive(on);
-        if (collectButton) collectButton.gameObject.SetActive(on);
-        SetTimerVisible(on);
-    }
-
-    int TotalPlaced() { return placedYellow; }
-    int TotalCollected() { return collectedYellow + collectedRed; }
-
-    // ---------------------------
-    // Mimic Tap Shake (always visible, angle-independent)
-    // ---------------------------
-    void StartMimicTapShake(Treasure t)
-    {
-        if (t == null) return;
-
-        StopAnyShake();
-
-        // IMPORTANT: IdleMotion also writes localPosition each frame.
-        // Instead of disabling it, we call StopMotion() so it stops fighting the shake.
-        var idle = t.GetComponent<TreasureIdleMotion>();
-        if (idle != null) idle.StopMotion();
-
-        shakeTarget = t.transform;
-        shakeStartLocalPos = shakeTarget.localPosition;
-
-        currentShakeRoutine = StartCoroutine(MimicTapShakeRoutine());
-    }
-
-    IEnumerator MimicTapShakeRoutine()
-    {
-        float endTime = Time.time + mimicTapShakeSeconds;
-
-        while (shakeTarget != null && Time.time < endTime)
-        {
-            float s = Mathf.Sin(Time.time * mimicTapShakeSpeed);
-            float c = Mathf.Cos(Time.time * mimicTapShakeSpeed * 1.1f);
-
-            float x = s * mimicTapShakeAmount;
-            float z = c * mimicTapShakeAmount;
-
-            shakeTarget.localPosition = shakeStartLocalPos + new Vector3(x, 0f, z);
-            yield return null;
-        }
-
-        if (shakeTarget != null)
-            shakeTarget.localPosition = shakeStartLocalPos;
-
-        currentShakeRoutine = null;
-        shakeTarget = null;
-    }
-
-    void StopAnyShake()
-    {
-        if (currentShakeRoutine != null)
-        {
-            StopCoroutine(currentShakeRoutine);
-            currentShakeRoutine = null;
-        }
-
-        if (shakeTarget != null)
-        {
-            shakeTarget.localPosition = shakeStartLocalPos;
-            shakeTarget = null;
-        }
     }
 }

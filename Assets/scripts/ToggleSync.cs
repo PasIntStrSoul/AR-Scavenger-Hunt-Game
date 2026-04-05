@@ -1,26 +1,24 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.UI;
 
-[RequireComponent(typeof(ARTapToPlaceTreasure))]
 public class ToggleSync : MonoBehaviour
 {
     public Toggle toggleRed;
-    private ARTapToPlaceTreasure placer;
-
-    void Awake()
-    {
-        placer = GetComponent<ARTapToPlaceTreasure>();
-    }
+    public ARTapToPlaceTreasure placer;
 
     void Start()
     {
-        if (!toggleRed || !placer) { Debug.LogWarning("[ToggleSync] Missing refs"); return; }
+        if (toggleRed != null)
+        {
+            toggleRed.onValueChanged.AddListener(OnToggleChanged);
+        }
+    }
 
-        // 1) Apply the initial toggle state at startup
-        placer.SetPlaceRed(toggleRed.isOn);
+    void OnToggleChanged(bool isOn)
+    {
+        // 🔥 THIS SYSTEM IS NO LONGER USED
+        // mimicChancePercent has been removed
 
-        // 2) Keep them in sync on every change
-        toggleRed.onValueChanged.AddListener(placer.SetPlaceRed);
+        Debug.Log("Toggle changed (no longer controls mimic chance)");
     }
 }
-

@@ -8,7 +8,7 @@ public class TouchSelect : MonoBehaviour
     [Header("Raycast")]
     public float rayDistance = 100f;
 
-    Camera cam;
+    private Camera cam;
 
     void Awake()
     {
@@ -17,7 +17,7 @@ public class TouchSelect : MonoBehaviour
 
     void Update()
     {
-        // Keep camera reference alive (AR setups sometimes change camera/main tag)
+        // Keep camera reference alive (important for AR)
         if (cam == null) cam = Camera.main;
         if (cam == null) return;
 
@@ -27,9 +27,11 @@ public class TouchSelect : MonoBehaviour
         if (Input.touchCount > 0)
         {
             Touch touch = Input.GetTouch(0);
-            if (touch.phase != TouchPhase.Began) return;
 
-            // Ignore touches on UI (Collect/Start/Restart buttons etc.)
+            if (touch.phase != TouchPhase.Began)
+                return;
+
+            // Ignore UI touches
             if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(touch.fingerId))
                 return;
 
@@ -43,7 +45,6 @@ public class TouchSelect : MonoBehaviour
         // ---------------------------
         if (Input.GetMouseButtonDown(0))
         {
-            // Ignore clicks on UI in editor too
             if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
                 return;
 
@@ -56,16 +57,36 @@ public class TouchSelect : MonoBehaviour
     {
         Ray ray = cam.ScreenPointToRay(screenPos);
 
+        Debug.DrawRay(ray.origin, ray.direction * rayDistance, Color.red, 1f);
+
         if (Physics.Raycast(ray, out RaycastHit hit, rayDistance))
         {
-            // Important: collider might be on lid/child, so go up to root Treasure
+            Debug.Log("HIT: " + hit.collider.name);
+
+            // Get Treasure from parent (IMPORTANT for child colliders)
             Treasure treasure = hit.collider.GetComponentInParent<Treasure>();
 
-            if (treasure != null && manager != null)
+            if (treasure != null)
             {
-                manager.SetSelected(treasure);
+                Debug.Log("Treasure Selected: " + treasure.name);
+
+                if (manager != null)
+                {
+                    manager.SetSelected(treasure);
+                }
+                else
+                {
+                    Debug.LogWarning("TreasureManager is NULL!");
+                }
             }
+            else
+            {
+                Debug.Log("Hit object is NOT a Treasure");
+            }
+        }
+        else
+        {
+            Debug.Log("Raycast did NOT hit anything");
         }
     }
 }
-

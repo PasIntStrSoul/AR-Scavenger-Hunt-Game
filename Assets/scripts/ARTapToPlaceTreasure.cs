@@ -1,133 +1,99 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.XR.ARFoundation;
 using UnityEngine.XR.ARSubsystems;
 
 public class ARTapToPlaceTreasure : MonoBehaviour
 {
     [Header("References")]
-    public TreasureManager manager; // drag _Game (TreasureManager) here
-
-    [Header("AR")]
-    [SerializeField] private ARRaycastManager raycastManager;
-    private static readonly List<ARRaycastHit> hits = new();
+    public ARRaycastManager raycastManager;
+    public TreasureManager manager;
 
     [Header("Prefabs")]
     public GameObject yellowTreasurePrefab;
-    public GameObject redTreasurePrefab; // legacy, not used in mimic mode
 
-    [Header("Legacy UI Toggle (Ignore for Mimic mode)")]
-    public bool placeRed = false; // kept so nothing breaks
-
-    [Header("Limits")]
-    [Tooltip("Total number of treasures allowed to be placed (Yellow + Red combined).")]
+    [Header("Settings")]
     public int maxTotalPlacements = 10;
 
-    [Header("Mimic Rules")]
-    [Range(0, 100)]
-    public int mimicChancePercent = 30;
+    // 🔥 Fixed pattern (7 good, 3 mimic)
+    private List<bool> spawnPattern = new List<bool>();
+    private int spawnIndex = 0;
 
-    private int placedTotal = 0;
+    private int placedCount = 0;
 
-    public void SetPlaceRed(bool value)
+    void Start()
     {
-        placeRed = value;
-        Debug.Log($"[Placer] placeRed now = {placeRed} (ignored in Mimic mode)");
+        GenerateSpawnPattern();
     }
 
-    private void Awake()
+    // 🔥 Generate 7 Good + 3 Mimics and shuffle
+    void GenerateSpawnPattern()
     {
-        if (!raycastManager)
-            raycastManager = FindObjectOfType<ARRaycastManager>();
+        spawnPattern.Clear();
+
+        // 7 good (false)
+        for (int i = 0; i < 7; i++)
+            spawnPattern.Add(false);
+
+        // 3 mimic (true)
+        for (int i = 0; i < 3; i++)
+            spawnPattern.Add(true);
+
+        // Shuffle
+        for (int i = 0; i < spawnPattern.Count; i++)
+        {
+            int rand = Random.Range(i, spawnPattern.Count);
+            bool temp = spawnPattern[i];
+            spawnPattern[i] = spawnPattern[rand];
+            spawnPattern[rand] = temp;
+        }
+
+        spawnIndex = 0;
+
+        Debug.Log("Spawn Pattern Generated: " + string.Join(",", spawnPattern));
     }
 
-    private void Update()
+    public bool TryAutoPlace(Pose pose)
     {
-        if (placedTotal >= maxTotalPlacements)
-            return;
+        if (placedCount >= maxTotalPlacements)
+            return false;
 
-        // Touch placement on device
-        if (Input.touchCount > 0)
+        if (spawnIndex >= spawnPattern.Count)
+            return false;
+
+        bool isMimic = spawnPattern[spawnIndex];
+        spawnIndex++;
+
+        Debug.Log("Spawning Mimic: " + isMimic);
+
+        GameObject obj = Instantiate(yellowTreasurePrefab, pose.position, pose.rotation);
+
+        Treasure treasure = obj.GetComponentInChildren<Treasure>();
+
+        if (treasure != null)
         {
-            Touch touch = Input.GetTouch(0);
-            if (touch.phase != TouchPhase.Began) return;
-
-            // Prevent placing when tapping UI
-            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(touch.fingerId))
-                return;
-
-            TryPlaceAtScreenPos(touch.position);
-            return;
-        }
-
-#if UNITY_EDITOR
-        // Mouse placement in Editor (optional, helps testing)
-        if (Input.GetMouseButtonDown(0))
-        {
-            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
-                return;
-
-            TryPlaceAtScreenPos(Input.mousePosition);
-        }
-#endif
-    }
-
-    void TryPlaceAtScreenPos(Vector2 screenPos)
-    {
-        if (raycastManager == null) return;
-
-        if (!raycastManager.Raycast(screenPos, hits, TrackableType.PlaneWithinPolygon))
-            return;
-
-        Pose pose = hits[0].pose;
-
-        GameObject prefab = yellowTreasurePrefab;
-        if (prefab == null)
-        {
-            Debug.LogWarning("[Placer] Yellow prefab is missing! Assign YellowTreasurePrefab in Inspector.");
-            return;
-        }
-
-        // Spawn treasure
-        GameObject go = Instantiate(prefab, pose.position, pose.rotation);
-
-        // Find Treasure component robustly (root OR children)
-        Treasure t = go.GetComponent<Treasure>();
-        if (t == null)
-            t = go.GetComponentInChildren<Treasure>(true);
-
-        if (t != null)
-        {
-            // Set secret mimic state
-            t.isMimic = (Random.Range(0, 100) < mimicChancePercent);
-
-            // Force yellow appearance at spawn (Negrin rule)
-            if (manager != null && manager.yellowMat != null)
-                t.SetYellow(manager.yellowMat);
+            treasure.isMimic = isMimic;
         }
         else
         {
-            Debug.LogWarning("[Placer] Spawned treasure has no Treasure component (root or children). Add Treasure.cs to the prefab.");
+            Debug.LogError("Treasure script NOT FOUND!");
         }
 
-        placedTotal++;
+        placedCount++;
 
-        // Notify manager (counts placement)
         if (manager != null)
-            manager.RecordPlaced(false);
+        {
+            manager.RecordPlaced(isMimic);
+        }
 
-        string secret = (t != null) ? (t.isMimic ? "MIMIC" : "GOOD") : "NO_TREASURE_COMPONENT";
-        Debug.Log($"[Placer] Placed YELLOW (secret: {secret}) | Total = {placedTotal}/{maxTotalPlacements}");
+        return true;
     }
 
     public void ResetPlacementCount()
     {
-        placedTotal = 0;
-    }
+        placedCount = 0;
 
-    public void DisablePlacement()
-    {
-        placedTotal = maxTotalPlacements;
+        // 🔥 Regenerate pattern for new game
+        GenerateSpawnPattern();
     }
 }
