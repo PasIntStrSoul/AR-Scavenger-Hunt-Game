@@ -15,7 +15,7 @@ public class ARTapToPlaceTreasure : MonoBehaviour
     [Header("Settings")]
     public int maxTotalPlacements = 10;
 
-    // 🔥 Fixed pattern (7 good, 3 mimic)
+    // Fixed pattern (7 good, 3 mimic)
     private List<bool> spawnPattern = new List<bool>();
     private int spawnIndex = 0;
 
@@ -26,20 +26,16 @@ public class ARTapToPlaceTreasure : MonoBehaviour
         GenerateSpawnPattern();
     }
 
-    // 🔥 Generate 7 Good + 3 Mimics and shuffle
     void GenerateSpawnPattern()
     {
         spawnPattern.Clear();
 
-        // 7 good (false)
         for (int i = 0; i < 7; i++)
             spawnPattern.Add(false);
 
-        // 3 mimic (true)
         for (int i = 0; i < 3; i++)
             spawnPattern.Add(true);
 
-        // Shuffle
         for (int i = 0; i < spawnPattern.Count; i++)
         {
             int rand = Random.Range(i, spawnPattern.Count);
@@ -81,9 +77,16 @@ public class ARTapToPlaceTreasure : MonoBehaviour
 
         placedCount++;
 
+        Debug.Log("Placed Count: " + placedCount);
+
+        // 🔥 CRITICAL FIX — always notify manager
         if (manager != null)
         {
             manager.RecordPlaced(isMimic);
+        }
+        else
+        {
+            Debug.LogError("TreasureManager NOT assigned!");
         }
 
         return true;
@@ -92,8 +95,6 @@ public class ARTapToPlaceTreasure : MonoBehaviour
     public void ResetPlacementCount()
     {
         placedCount = 0;
-
-        // 🔥 Regenerate pattern for new game
         GenerateSpawnPattern();
     }
 }

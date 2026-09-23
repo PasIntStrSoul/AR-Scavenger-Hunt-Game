@@ -2,6 +2,7 @@
 using UnityEngine.UI;
 using TMPro;
 using System.Collections;
+using UnityEngine.SceneManagement;
 
 public class TreasureManager : MonoBehaviour
 {
@@ -18,6 +19,9 @@ public class TreasureManager : MonoBehaviour
 
     [Header("Final Score UI")]
     public TextMeshProUGUI finalScoreText;
+
+    [Header("Scan Prompt UI")]
+    public GameObject scanPromptPanel;
 
     [Header("Rules")]
     public int maxTotalPlacements = 10;
@@ -42,10 +46,13 @@ public class TreasureManager : MonoBehaviour
         if (startButton) startButton.onClick.AddListener(StartGame);
         if (restartButton) restartButton.onClick.AddListener(RestartGame);
 
-        if (collectButton) collectButton.interactable = false;
+        if (collectButton) collectButton.gameObject.SetActive(false);
         if (startButton) startButton.gameObject.SetActive(false);
         if (restartButton) restartButton.gameObject.SetActive(false);
         if (finalScoreText) finalScoreText.gameObject.SetActive(false);
+
+        // Changed: prompt should NOT appear before main menu start
+        if (scanPromptPanel) scanPromptPanel.SetActive(false);
 
         SetTimerVisible(false);
         UpdateUI();
@@ -57,8 +64,11 @@ public class TreasureManager : MonoBehaviour
 
         if (placedTotal >= maxTotalPlacements)
         {
-            if (startButton != null)
+            if (startButton)
                 startButton.gameObject.SetActive(true);
+
+            if (scanPromptPanel)
+                scanPromptPanel.SetActive(false);
         }
 
         UpdateUI();
@@ -83,7 +93,6 @@ public class TreasureManager : MonoBehaviour
         selected = t;
         selected.Select();
 
-        // 🔥 NEW: If mimic → shake on select
         if (selected.isMimic)
         {
             StartCoroutine(ShakeTreasure(selected.transform, 0.4f, 0.05f));
@@ -93,7 +102,6 @@ public class TreasureManager : MonoBehaviour
             collectButton.interactable = true;
     }
 
-    // 🔥 UPDATED: Use coroutine instead of instant destroy
     public void CollectSelected()
     {
         if (!gameRunning) return;
@@ -107,31 +115,20 @@ public class TreasureManager : MonoBehaviour
             collectButton.interactable = false;
     }
 
-    // 🔥 NEW: Handles mimic behavior
     IEnumerator HandleTreasureCollection(Treasure t)
     {
         bool isMimic = t.isMimic;
 
         if (isMimic)
         {
-            Debug.Log("MIMIC ❌");
-
-            // 🔥 ONLY TURN RED ON COLLECT
             t.SetRed();
-
             yield return new WaitForSeconds(0.5f);
-
             score -= 1;
         }
         else
         {
-            Debug.Log("GOOD ✅");
-
-            // 🔥 TURN GREEN
             t.SetGreen();
-
             yield return new WaitForSeconds(0.3f);
-
             score += 1;
         }
 
@@ -140,14 +137,13 @@ public class TreasureManager : MonoBehaviour
         Destroy(t.gameObject);
 
         UpdateUI();
-        // 🔥 NEW: End game early if all treasures collected
+
         if ((collectedGood + collectedMimic) >= maxTotalPlacements)
         {
             EndGame();
         }
     }
 
-    // 🔥 NEW: Shake effect
     IEnumerator ShakeTreasure(Transform target, float duration, float magnitude)
     {
         Vector3 originalPos = target.localPosition;
@@ -158,7 +154,7 @@ public class TreasureManager : MonoBehaviour
             float x = Random.Range(-1f, 1f) * magnitude;
             float z = Random.Range(-1f, 1f) * magnitude;
 
-            target.localPosition = originalPos + new Vector3(x, 0, z);
+            target.localPosition = originalPos + new Vector3(x, 0f, z);
 
             elapsed += Time.deltaTime;
             yield return null;
@@ -173,6 +169,16 @@ public class TreasureManager : MonoBehaviour
 
         if (startButton) startButton.gameObject.SetActive(false);
         if (restartButton) restartButton.gameObject.SetActive(false);
+
+        if (scoreText) scoreText.gameObject.SetActive(true);
+        if (collectButton)
+        {
+            collectButton.gameObject.SetActive(true);
+            collectButton.interactable = false;
+        }
+
+        if (scanPromptPanel)
+            scanPromptPanel.SetActive(false);
 
         timeLeft = gameDurationSeconds;
 
@@ -207,34 +213,22 @@ public class TreasureManager : MonoBehaviour
         if (restartButton)
             restartButton.gameObject.SetActive(true);
 
+        if (collectButton)
+            collectButton.gameObject.SetActive(false);
+
         if (finalScoreText)
         {
             finalScoreText.text = "Final Score: " + score;
             finalScoreText.gameObject.SetActive(true);
         }
+
+        if (scanPromptPanel)
+            scanPromptPanel.SetActive(false);
     }
 
-    void RestartGame()
+    public void RestartGame()
     {
-        gameRunning = false;
-
-        score = 0;
-        placedTotal = 0;
-        collectedGood = 0;
-        collectedMimic = 0;
-
-        foreach (var t in FindObjectsOfType<Treasure>())
-            Destroy(t.gameObject);
-
-        if (placer != null)
-            placer.ResetPlacementCount();
-
-        if (startButton) startButton.gameObject.SetActive(false);
-        if (restartButton) restartButton.gameObject.SetActive(false);
-        if (finalScoreText) finalScoreText.gameObject.SetActive(false);
-
-        SetTimerVisible(false);
-        UpdateUI();
+        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
     void UpdateUI()
@@ -256,6 +250,7 @@ public class TreasureManager : MonoBehaviour
 
     void SetTimerVisible(bool on)
     {
-        if (timerCenterText) timerCenterText.gameObject.SetActive(on);
+        if (timerCenterText)
+            timerCenterText.gameObject.SetActive(on);
     }
 }
