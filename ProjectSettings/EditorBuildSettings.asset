@@ -8,6 +8,15 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/ScanPilot.unity
     guid: d4815991b7c13a740b89ad4d27cd59f2
+  - enabled: 1
+    path: Assets/Scenes/ScanPilot_Config3.unity
+    guid: ccb341c72c2314741b1aa9d0f3da1124
+  - enabled: 1
+    path: Assets/Scenes/ScanPilot_Config2.unity
+    guid: 5bf70640e9c970042b9c6b10adbb1a0e
+  - enabled: 1
+    path: Assets/Scenes/ScanPilot_Baseline.unity
+    guid: 21facd3c7b49a7841b9e6e6c0f29338f
   m_configObjects:
     UnityEditor.XR.ARCore.ARCoreSettings: {fileID: 11400000, guid: 438573e6182f3b249acf31c12952b7f0, type: 2}
     com.unity.xr.arfoundation.simulation_settings: {fileID: 11400000, guid: 4e65432e4d7549b468ad29484ea247ca, type: 2}
