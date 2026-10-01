@@ -6,6 +6,9 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/ScanPilot_HDRI_Test.unity
+    guid: 5ac23f72f414b004d9fe6b5a4bb117d8
+  - enabled: 1
     path: Assets/Scenes/ScanPilot_Baseline.unity
     guid: 21facd3c7b49a7841b9e6e6c0f29338f
   - enabled: 1
