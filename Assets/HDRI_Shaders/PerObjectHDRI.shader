@@ -4,10 +4,15 @@ Shader "Custom/PerObjectHDRI"
     {
         _Color ("Base Color", Color) = (1,1,1,1)
         _EnvCube ("HDRI Cubemap", Cube) = "" {}
-        _HDRIIntensity ("HDRI Intensity", Range(0,5)) = 1
+
+        _HDRIIntensity ("HDRI Intensity", Range(0,3)) = 1
         _HDRIRotation ("HDRI Rotation", Range(0,360)) = 0
+
+        _AmbientStrength ("Ambient Strength", Range(0,2)) = 0.35
+        _Contrast ("Lighting Contrast", Range(0.25,3)) = 1
+
         _Metallic ("Metallic", Range(0,1)) = 0
-        _Smoothness ("Smoothness", Range(0,1)) = 0.5
+        _Smoothness ("Smoothness", Range(0,1)) = 0.35
     }
 
     SubShader
@@ -25,6 +30,8 @@ Shader "Custom/PerObjectHDRI"
         fixed4 _Color;
         half _HDRIIntensity;
         half _HDRIRotation;
+        half _AmbientStrength;
+        half _Contrast;
         half _Metallic;
         half _Smoothness;
 
@@ -35,32 +42,44 @@ Shader "Custom/PerObjectHDRI"
 
         float3 RotateAroundY(float3 direction, float degrees)
         {
-            float radians = degrees * 0.01745329252;
-            float s = sin(radians);
-            float c = cos(radians);
+            float angle = radians(degrees);
 
-            float3 rotatedDirection;
-            rotatedDirection.x = c * direction.x - s * direction.z;
-            rotatedDirection.y = direction.y;
-            rotatedDirection.z = s * direction.x + c * direction.z;
+            float s = sin(angle);
+            float c = cos(angle);
 
-            return rotatedDirection;
+            return float3(
+                c * direction.x - s * direction.z,
+                direction.y,
+                s * direction.x + c * direction.z
+            );
         }
 
         void surf(Input IN, inout SurfaceOutputStandard o)
         {
-            float3 normalDirection = normalize(IN.worldNormal);
+            float3 N = normalize(IN.worldNormal);
 
-            normalDirection =
-                RotateAroundY(normalDirection, _HDRIRotation);
+            float3 sampleDirection =
+                RotateAroundY(N, _HDRIRotation);
 
-            half3 hdriLighting =
-                texCUBE(_EnvCube, normalDirection).rgb;
+            half3 environment =
+                texCUBE(_EnvCube, sampleDirection).rgb;
 
-            hdriLighting *= _HDRIIntensity;
+            environment *= _HDRIIntensity;
 
-            o.Albedo = _Color.rgb;
-            o.Emission = hdriLighting * _Color.rgb;
+            // Convert the HDRI sample into a controlled
+            // illumination factor instead of simply making
+            // the object glow through emission.
+            half luminance =
+                dot(environment, half3(0.2126, 0.7152, 0.0722));
+
+            luminance =
+                pow(max(luminance, 0.001), _Contrast);
+
+            half lighting =
+                _AmbientStrength + luminance;
+
+            o.Albedo =
+                _Color.rgb * lighting;
 
             o.Metallic = _Metallic;
             o.Smoothness = _Smoothness;
