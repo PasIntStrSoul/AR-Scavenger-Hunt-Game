@@ -3,16 +3,11 @@ Shader "Custom/PerObjectHDRI"
     Properties
     {
         _Color ("Base Color", Color) = (1,1,1,1)
-        _EnvCube ("HDRI Cubemap", Cube) = "" {}
-
-        _HDRIIntensity ("HDRI Intensity", Range(0,3)) = 1
+        _Environment ("HDRI Cubemap", Cube) = "" {}
+        _HDRIIntensity ("HDRI Intensity", Range(0,5)) = 1
         _HDRIRotation ("HDRI Rotation", Range(0,360)) = 0
-
-        _AmbientStrength ("Ambient Strength", Range(0,2)) = 0.35
+        _AmbientStrength ("Ambient Strength", Range(0,1)) = 0.25
         _Contrast ("Lighting Contrast", Range(0.25,3)) = 1
-
-        _Metallic ("Metallic", Range(0,1)) = 0
-        _Smoothness ("Smoothness", Range(0,1)) = 0.35
     }
 
     SubShader
@@ -22,72 +17,75 @@ Shader "Custom/PerObjectHDRI"
 
         CGPROGRAM
 
-        #pragma surface surf Standard fullforwardshadows
-        #pragma target 3.0
+        // HDRI directly controls the object's appearance.
+        // Unity scene lights are intentionally ignored.
+        #pragma surface surf NoLighting noforwardadd
 
-        samplerCUBE _EnvCube;
+        samplerCUBE _Environment;
 
         fixed4 _Color;
         half _HDRIIntensity;
         half _HDRIRotation;
         half _AmbientStrength;
         half _Contrast;
-        half _Metallic;
-        half _Smoothness;
 
         struct Input
         {
             float3 worldNormal;
         };
 
-        float3 RotateAroundY(float3 direction, float degrees)
+        float3 RotateAroundY(float3 dir, float degrees)
         {
             float angle = radians(degrees);
-
             float s = sin(angle);
             float c = cos(angle);
 
             return float3(
-                c * direction.x - s * direction.z,
-                direction.y,
-                s * direction.x + c * direction.z
+                c * dir.x + s * dir.z,
+                dir.y,
+               -s * dir.x + c * dir.z
             );
         }
 
-        void surf(Input IN, inout SurfaceOutputStandard o)
+        half4 LightingNoLighting(
+            SurfaceOutput s,
+            half3 lightDir,
+            half atten)
         {
+            return half4(s.Albedo, s.Alpha);
+        }
+
+        void surf(Input IN, inout SurfaceOutput o)
+        {
+            // Explicitly normalize the WORLD-SPACE surface normal.
             float3 N = normalize(IN.worldNormal);
 
-            float3 sampleDirection =
-                RotateAroundY(N, _HDRIRotation);
+            // Rotate the cubemap sampling direction around world Y.
+            float3 rotatedN =
+                normalize(RotateAroundY(N, _HDRIRotation));
 
-            half3 environment =
-                texCUBE(_EnvCube, sampleDirection).rgb;
+            // Sample HDRI using the rotated direction.
+            half3 hdri =
+                texCUBE(_Environment, rotatedN).rgb;
 
-            environment *= _HDRIIntensity;
+            hdri *= _HDRIIntensity;
 
-            // Convert the HDRI sample into a controlled
-            // illumination factor instead of simply making
-            // the object glow through emission.
             half luminance =
-                dot(environment, half3(0.2126, 0.7152, 0.0722));
+                dot(hdri, half3(0.2126, 0.7152, 0.0722));
 
-            luminance =
-                pow(max(luminance, 0.001), _Contrast);
+            hdri =
+                lerp(luminance.xxx, hdri, _Contrast);
 
-            half lighting =
-                _AmbientStrength + luminance;
+            half3 finalColor =
+                _Color.rgb *
+                (hdri + _AmbientStrength);
 
-            o.Albedo =
-                _Color.rgb * lighting;
-
-            o.Metallic = _Metallic;
-            o.Smoothness = _Smoothness;
+            o.Albedo = finalColor;
             o.Alpha = _Color.a;
         }
 
         ENDCG
     }
 
-    FallBack "Diffuse"
+    FallBack Off
 }
