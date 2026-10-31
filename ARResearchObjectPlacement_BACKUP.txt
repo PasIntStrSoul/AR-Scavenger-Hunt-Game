@@ -1,0 +1,165 @@
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.XR.ARFoundation;
+using UnityEngine.XR.ARSubsystems;
+
+public class ARResearchObjectPlacement : MonoBehaviour
+{
+    public enum LightingCondition
+    {
+        Bright,
+        Medium,
+        Dark
+    }
+
+    [Header("References")]
+    public ARRaycastManager raycastManager;
+
+    [Header("Research Object Prefabs")]
+    public GameObject brightPrefab;
+    public GameObject mediumPrefab;
+    public GameObject darkPrefab;
+
+    [Header("Lighting Configuration")]
+    public LightingCondition selectedLighting = LightingCondition.Bright;
+
+    [Header("Placement Settings")]
+    public int maxPlacements = 1;
+    public float minimumUpwardAlignment = 0.8f;
+
+    [Tooltip("Vertical correction for the chair's pivot.")]
+    public float verticalPlacementOffset = 0.155f;
+
+    [Header("Placement Mode")]
+    public bool placementEnabled = true;
+
+    private int placedCount = 0;
+    private GameObject placedObject;
+
+    private static readonly List<ARRaycastHit> hits =
+        new List<ARRaycastHit>();
+
+    void Update()
+    {
+        if (!placementEnabled)
+            return;
+
+        if (placedCount >= maxPlacements)
+            return;
+
+        if (raycastManager == null)
+            return;
+
+        if (Input.touchCount == 0)
+            return;
+
+        Touch touch = Input.GetTouch(0);
+
+        if (touch.phase != TouchPhase.Began)
+            return;
+
+        if (EventSystem.current != null &&
+            EventSystem.current.IsPointerOverGameObject(touch.fingerId))
+            return;
+
+        TryPlaceObject(touch.position);
+    }
+
+    GameObject GetSelectedPrefab()
+    {
+        switch (selectedLighting)
+        {
+            case LightingCondition.Bright:
+                return brightPrefab;
+
+            case LightingCondition.Medium:
+                return mediumPrefab;
+
+            case LightingCondition.Dark:
+                return darkPrefab;
+
+            default:
+                return brightPrefab;
+        }
+    }
+
+    void TryPlaceObject(Vector2 screenPosition)
+    {
+        GameObject selectedPrefab = GetSelectedPrefab();
+
+        if (selectedPrefab == null)
+        {
+            Debug.LogWarning("Research prefab is not assigned.");
+            return;
+        }
+
+        if (!raycastManager.Raycast(
+            screenPosition,
+            hits,
+            TrackableType.PlaneWithinPolygon))
+        {
+            return;
+        }
+
+        Pose hitPose = hits[0].pose;
+
+        Vector3 surfaceNormal =
+            hitPose.rotation * Vector3.up;
+
+        float alignment =
+            Vector3.Dot(surfaceNormal, Vector3.up);
+
+        if (alignment < minimumUpwardAlignment)
+        {
+            Debug.Log("Research placement rejected: surface is not horizontal.");
+            return;
+        }
+
+        Vector3 correctedPosition =
+            hitPose.position +
+            Vector3.up * verticalPlacementOffset;
+
+        placedObject = Instantiate(
+            selectedPrefab,
+            correctedPosition,
+            Quaternion.identity
+        );
+
+        placedObject.SetActive(true);
+
+        placedCount++;
+
+        Debug.Log(
+            "Research object placed: " +
+            selectedLighting +
+            " | Offset: " +
+            verticalPlacementOffset
+        );
+    }
+
+    public void EnableResearchPlacement()
+    {
+        placementEnabled = true;
+        Debug.Log("Research Placement Mode Enabled");
+    }
+
+    public void DisableResearchPlacement()
+    {
+        placementEnabled = false;
+        Debug.Log("Research Placement Mode Disabled");
+    }
+
+    public void ResetResearchPlacement()
+    {
+        if (placedObject != null)
+        {
+            Destroy(placedObject);
+            placedObject = null;
+        }
+
+        placedCount = 0;
+
+        Debug.Log("Research Placement Reset");
+    }
+}

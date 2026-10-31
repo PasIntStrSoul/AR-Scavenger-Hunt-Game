@@ -105,13 +105,13 @@ Material:
     m_Floats:
     - _AlphaClip: 0
     - _AlphaToMask: 0
-    - _AmbientStrength: 0.83
+    - _AmbientStrength: 0
     - _Blend: 0
     - _BlendModePreserveSpecular: 1
     - _BumpScale: 1
     - _ClearCoatMask: 0
     - _ClearCoatSmoothness: 0
-    - _Contrast: 0.75
+    - _Contrast: 1.1
     - _Cull: 2
     - _Cutoff: 0.5
     - _DetailAlbedoMapScale: 1
@@ -122,8 +122,8 @@ Material:
     - _GlossMapScale: 0
     - _Glossiness: 0
     - _GlossyReflections: 0
-    - _HDRIIntensity: 1
-    - _HDRIRotation: 194
+    - _HDRIIntensity: 0.6
+    - _HDRIRotation: 0
     - _Metallic: 1
     - _Mode: 0
     - _OcclusionStrength: 1

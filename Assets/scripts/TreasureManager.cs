@@ -5,6 +5,13 @@ using System.Collections;
 
 public class TreasureManager : MonoBehaviour
 {
+    public enum GameMode
+    {
+        Placement,
+        Picking,
+        Finished
+    }
+
     [Header("UI")]
     public Button collectButton;
     public TextMeshProUGUI scoreText;
@@ -26,153 +33,119 @@ public class TreasureManager : MonoBehaviour
     [Header("References")]
     public ARTapToPlaceTreasure placer;
 
-    int placedTotal;
-    int collectedGood, collectedMimic;
-    int score;
+    private int placedTotal = 0;
+    private int collectedGood = 0;
+    private int collectedMimic = 0;
+    private int score = 0;
 
-    Treasure selected;
+    private Treasure selected;
 
-    bool gameRunning = false;
-    float timeLeft = 0f;
-    Coroutine timerRoutine;
+    private GameMode currentMode = GameMode.Placement;
+
+    private float timeLeft = 0f;
+    private Coroutine timerRoutine;
+
+    public GameMode CurrentMode
+    {
+        get { return currentMode; }
+    }
 
     void Start()
     {
-        if (collectButton) collectButton.onClick.AddListener(CollectSelected);
-        if (startButton) startButton.onClick.AddListener(StartGame);
-        if (restartButton) restartButton.onClick.AddListener(RestartGame);
+        if (collectButton != null)
+            collectButton.onClick.AddListener(CollectSelected);
 
-        if (collectButton) collectButton.interactable = false;
-        if (startButton) startButton.gameObject.SetActive(false);
-        if (restartButton) restartButton.gameObject.SetActive(false);
-        if (finalScoreText) finalScoreText.gameObject.SetActive(false);
+        if (startButton != null)
+            startButton.onClick.AddListener(StartGame);
+
+        if (restartButton != null)
+            restartButton.onClick.AddListener(RestartGame);
+
+        EnterPlacementMode();
+    }
+
+    // ==========================================
+    // MODE 1: PLACEMENT
+    // ==========================================
+
+    void EnterPlacementMode()
+    {
+        currentMode = GameMode.Placement;
+
+        if (placer != null)
+            placer.EnablePlacement();
+
+        if (collectButton != null)
+            collectButton.interactable = false;
+
+        if (startButton != null)
+            startButton.gameObject.SetActive(
+                placedTotal >= maxTotalPlacements
+            );
+
+        if (restartButton != null)
+            restartButton.gameObject.SetActive(false);
+
+        if (finalScoreText != null)
+            finalScoreText.gameObject.SetActive(false);
 
         SetTimerVisible(false);
+
         UpdateUI();
+
+        Debug.Log("GAME MODE: PLACEMENT");
     }
 
     public void RecordPlaced(bool isMimic)
     {
+        if (currentMode != GameMode.Placement)
+            return;
+
         placedTotal++;
 
         if (placedTotal >= maxTotalPlacements)
         {
             if (startButton != null)
                 startButton.gameObject.SetActive(true);
+
+            Debug.Log("Placement complete. Ready for Picking Mode.");
         }
 
         UpdateUI();
     }
 
-    public void RecordCollected(bool isMimic)
-    {
-        if (isMimic) collectedMimic++;
-        else collectedGood++;
-
-        UpdateUI();
-    }
-
-    public void SetSelected(Treasure t)
-    {
-        if (!gameRunning) return;
-        if (t == null) return;
-
-        if (selected != null)
-            selected.Deselect();
-
-        selected = t;
-        selected.Select();
-
-        // 🔥 NEW: If mimic → shake on select
-        if (selected.isMimic)
-        {
-            StartCoroutine(ShakeTreasure(selected.transform, 0.4f, 0.05f));
-        }
-
-        if (collectButton)
-            collectButton.interactable = true;
-    }
-
-    // 🔥 UPDATED: Use coroutine instead of instant destroy
-    public void CollectSelected()
-    {
-        if (!gameRunning) return;
-        if (!selected) return;
-
-        StartCoroutine(HandleTreasureCollection(selected));
-
-        selected = null;
-
-        if (collectButton)
-            collectButton.interactable = false;
-    }
-
-    // 🔥 NEW: Handles mimic behavior
-    IEnumerator HandleTreasureCollection(Treasure t)
-    {
-        bool isMimic = t.isMimic;
-
-        if (isMimic)
-        {
-            Debug.Log("MIMIC ❌");
-
-            // 🔥 ONLY TURN RED ON COLLECT
-            t.SetRed();
-
-            yield return new WaitForSeconds(0.5f);
-
-            score -= 1;
-        }
-        else
-        {
-            Debug.Log("GOOD ✅");
-
-            // 🔥 TURN GREEN
-            t.SetGreen();
-
-            yield return new WaitForSeconds(0.3f);
-
-            score += 1;
-        }
-
-        RecordCollected(isMimic);
-
-        Destroy(t.gameObject);
-
-        UpdateUI();
-        // 🔥 NEW: End game early if all treasures collected
-        if ((collectedGood + collectedMimic) >= maxTotalPlacements)
-        {
-            EndGame();
-        }
-    }
-
-    // 🔥 NEW: Shake effect
-    IEnumerator ShakeTreasure(Transform target, float duration, float magnitude)
-    {
-        Vector3 originalPos = target.localPosition;
-        float elapsed = 0f;
-
-        while (elapsed < duration)
-        {
-            float x = Random.Range(-1f, 1f) * magnitude;
-            float z = Random.Range(-1f, 1f) * magnitude;
-
-            target.localPosition = originalPos + new Vector3(x, 0, z);
-
-            elapsed += Time.deltaTime;
-            yield return null;
-        }
-
-        target.localPosition = originalPos;
-    }
+    // ==========================================
+    // MODE 2: PICKING
+    // ==========================================
 
     public void StartGame()
     {
-        gameRunning = true;
+        if (currentMode != GameMode.Placement)
+            return;
 
-        if (startButton) startButton.gameObject.SetActive(false);
-        if (restartButton) restartButton.gameObject.SetActive(false);
+        if (placedTotal < maxTotalPlacements)
+        {
+            Debug.LogWarning(
+                "Place all objects before starting Picking Mode."
+            );
+
+            return;
+        }
+
+        currentMode = GameMode.Picking;
+
+        // Stop further object placement.
+        if (placer != null)
+            placer.DisablePlacement();
+
+        if (startButton != null)
+            startButton.gameObject.SetActive(false);
+
+        if (restartButton != null)
+            restartButton.gameObject.SetActive(false);
+
+        if (collectButton != null)
+            collectButton.interactable = false;
 
         timeLeft = gameDurationSeconds;
 
@@ -183,79 +156,299 @@ public class TreasureManager : MonoBehaviour
             StopCoroutine(timerRoutine);
 
         timerRoutine = StartCoroutine(TimerCountdown());
+
+        Debug.Log("GAME MODE: PICKING");
     }
 
-    IEnumerator TimerCountdown()
+    public void SetSelected(Treasure t)
     {
-        while (gameRunning && timeLeft > 0f)
+        if (currentMode != GameMode.Picking)
+            return;
+
+        if (t == null)
+            return;
+
+        if (selected != null)
+            selected.Deselect();
+
+        selected = t;
+        selected.Select();
+
+        if (selected.isMimic)
         {
-            timeLeft -= Time.deltaTime;
-            UpdateTimerUI();
+            StartCoroutine(
+                ShakeTreasure(selected.transform, 0.4f, 0.05f)
+            );
+        }
+
+        if (collectButton != null)
+            collectButton.interactable = true;
+    }
+
+    public void CollectSelected()
+    {
+        if (currentMode != GameMode.Picking)
+            return;
+
+        if (selected == null)
+            return;
+
+        Treasure treasureToCollect = selected;
+
+        selected = null;
+
+        if (collectButton != null)
+            collectButton.interactable = false;
+
+        StartCoroutine(
+            HandleTreasureCollection(treasureToCollect)
+        );
+    }
+
+    IEnumerator HandleTreasureCollection(Treasure t)
+    {
+        if (t == null)
+            yield break;
+
+        bool isMimic = t.isMimic;
+
+        if (isMimic)
+        {
+            Debug.Log("MIMIC");
+
+            t.SetRed();
+
+            yield return new WaitForSeconds(0.5f);
+
+            if (currentMode != GameMode.Picking)
+                yield break;
+
+            score -= 1;
+        }
+        else
+        {
+            Debug.Log("GOOD TREASURE");
+
+            t.SetGreen();
+
+            yield return new WaitForSeconds(0.3f);
+
+            if (currentMode != GameMode.Picking)
+                yield break;
+
+            score += 1;
+        }
+
+        RecordCollected(isMimic);
+
+        if (t != null)
+            Destroy(t.gameObject);
+
+        UpdateUI();
+
+        if ((collectedGood + collectedMimic) >= maxTotalPlacements)
+        {
+            EndGame();
+        }
+    }
+
+    public void RecordCollected(bool isMimic)
+    {
+        if (isMimic)
+            collectedMimic++;
+        else
+            collectedGood++;
+
+        UpdateUI();
+    }
+
+    // ==========================================
+    // MIMIC SHAKE EFFECT
+    // ==========================================
+
+    IEnumerator ShakeTreasure(
+        Transform target,
+        float duration,
+        float magnitude)
+    {
+        if (target == null)
+            yield break;
+
+        Vector3 originalPos = target.localPosition;
+
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            if (target == null)
+                yield break;
+
+            float x = Random.Range(-1f, 1f) * magnitude;
+            float z = Random.Range(-1f, 1f) * magnitude;
+
+            target.localPosition =
+                originalPos + new Vector3(x, 0, z);
+
+            elapsed += Time.deltaTime;
+
             yield return null;
         }
 
-        EndGame();
+        if (target != null)
+            target.localPosition = originalPos;
     }
+
+    // ==========================================
+    // TIMER
+    // ==========================================
+
+    IEnumerator TimerCountdown()
+    {
+        while (
+            currentMode == GameMode.Picking &&
+            timeLeft > 0f)
+        {
+            timeLeft -= Time.deltaTime;
+
+            UpdateTimerUI();
+
+            yield return null;
+        }
+
+        if (currentMode == GameMode.Picking)
+            EndGame();
+    }
+
+    // ==========================================
+    // GAME END
+    // ==========================================
 
     void EndGame()
     {
-        gameRunning = false;
+        if (currentMode == GameMode.Finished)
+            return;
+
+        currentMode = GameMode.Finished;
 
         if (timerRoutine != null)
+        {
             StopCoroutine(timerRoutine);
+            timerRoutine = null;
+        }
 
-        if (restartButton)
+        if (placer != null)
+            placer.DisablePlacement();
+
+        if (selected != null)
+        {
+            selected.Deselect();
+            selected = null;
+        }
+
+        if (collectButton != null)
+            collectButton.interactable = false;
+
+        if (restartButton != null)
             restartButton.gameObject.SetActive(true);
 
-        if (finalScoreText)
+        if (finalScoreText != null)
         {
             finalScoreText.text = "Final Score: " + score;
             finalScoreText.gameObject.SetActive(true);
         }
+
+        Debug.Log("GAME MODE: FINISHED");
     }
+
+    // ==========================================
+    // RESTART
+    // ==========================================
 
     void RestartGame()
     {
-        gameRunning = false;
+        currentMode = GameMode.Finished;
+
+        if (timerRoutine != null)
+        {
+            StopCoroutine(timerRoutine);
+            timerRoutine = null;
+        }
+
+        StopAllCoroutines();
+
+        if (selected != null)
+        {
+            selected.Deselect();
+            selected = null;
+        }
+
+        foreach (Treasure t in FindObjectsOfType<Treasure>())
+        {
+            Destroy(t.gameObject);
+        }
 
         score = 0;
         placedTotal = 0;
         collectedGood = 0;
         collectedMimic = 0;
 
-        foreach (var t in FindObjectsOfType<Treasure>())
-            Destroy(t.gameObject);
+        timeLeft = 0f;
 
         if (placer != null)
             placer.ResetPlacementCount();
 
-        if (startButton) startButton.gameObject.SetActive(false);
-        if (restartButton) restartButton.gameObject.SetActive(false);
-        if (finalScoreText) finalScoreText.gameObject.SetActive(false);
+        EnterPlacementMode();
 
-        SetTimerVisible(false);
-        UpdateUI();
+        Debug.Log("Game restarted.");
     }
+
+    // ==========================================
+    // UI
+    // ==========================================
 
     void UpdateUI()
     {
-        if (scoreText)
+        if (scoreText == null)
+            return;
+
+        string modeText = "";
+
+        switch (currentMode)
         {
-            scoreText.text =
-                "Score: " + score + "\n" +
-                "Placed: " + placedTotal + "\n" +
-                "Collected  Good:" + collectedGood + "  Mimic:" + collectedMimic;
+            case GameMode.Placement:
+                modeText = "PLACEMENT MODE";
+                break;
+
+            case GameMode.Picking:
+                modeText = "PICKING MODE";
+                break;
+
+            case GameMode.Finished:
+                modeText = "GAME FINISHED";
+                break;
         }
+
+        scoreText.text =
+            modeText + "\n" +
+            "Score: " + score + "\n" +
+            "Placed: " + placedTotal + "/" +
+            maxTotalPlacements + "\n" +
+            "Collected Good: " + collectedGood + "\n" +
+            "Mimic: " + collectedMimic;
     }
 
     void UpdateTimerUI()
     {
-        if (!timerCenterText) return;
-        timerCenterText.text = Mathf.CeilToInt(timeLeft).ToString();
+        if (timerCenterText == null)
+            return;
+
+        timerCenterText.text =
+            Mathf.CeilToInt(Mathf.Max(0f, timeLeft)).ToString();
     }
 
-    void SetTimerVisible(bool on)
+    void SetTimerVisible(bool visible)
     {
-        if (timerCenterText) timerCenterText.gameObject.SetActive(on);
+        if (timerCenterText != null)
+            timerCenterText.gameObject.SetActive(visible);
     }
 }

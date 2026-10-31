@@ -111,7 +111,7 @@ Material:
     - _BumpScale: 1
     - _ClearCoatMask: 0
     - _ClearCoatSmoothness: 0
-    - _Contrast: 1.25
+    - _Contrast: 1
     - _Cull: 2
     - _Cutoff: 0.5
     - _DetailAlbedoMapScale: 1
@@ -122,8 +122,8 @@ Material:
     - _GlossMapScale: 0
     - _Glossiness: 0
     - _GlossyReflections: 0
-    - _HDRIIntensity: 0.75
-    - _HDRIRotation: 270
+    - _HDRIIntensity: 0.3
+    - _HDRIRotation: 0
     - _Metallic: 0
     - _Mode: 0
     - _OcclusionStrength: 1

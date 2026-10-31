@@ -124,6 +124,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 4453877627871571647}
     m_Modifications:
+    - target: {fileID: 2155188540475233566, guid: 641f4fe2c74e72b44830088cbeb66613, type: 3}
+      propertyPath: m_Materials.Array.data[0]
+      value: 
+      objectReference: {fileID: 2100000, guid: 6b83ebfa84a35fa4092a3357ffc12dda, type: 2}
     - target: {fileID: 4284318065790215644, guid: 641f4fe2c74e72b44830088cbeb66613, type: 3}
       propertyPath: m_LocalScale.x
       value: 0.15
@@ -176,10 +180,18 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 4526676806612670844, guid: 641f4fe2c74e72b44830088cbeb66613, type: 3}
+      propertyPath: m_Materials.Array.data[0]
+      value: 
+      objectReference: {fileID: 2100000, guid: 6b83ebfa84a35fa4092a3357ffc12dda, type: 2}
     - target: {fileID: 5155060048452625043, guid: 641f4fe2c74e72b44830088cbeb66613, type: 3}
       propertyPath: m_Name
       value: Treasure_Visual
       objectReference: {fileID: 0}
+    - target: {fileID: 8380433595346114244, guid: 641f4fe2c74e72b44830088cbeb66613, type: 3}
+      propertyPath: m_Materials.Array.data[0]
+      value: 
+      objectReference: {fileID: 2100000, guid: 6b83ebfa84a35fa4092a3357ffc12dda, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
