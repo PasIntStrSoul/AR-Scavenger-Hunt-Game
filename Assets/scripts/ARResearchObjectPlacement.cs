@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -16,62 +17,98 @@ public class ARResearchObjectPlacement : MonoBehaviour
     public enum InteractionMode
     {
         Placement,
-        Selection
+        Selection,
+        Collection
     }
 
-    private enum ResearchObjectType
+    // Optional per-part material sets for objects with multiple meshes.
+    [Serializable]
+    public class RendererMaterialOverride
     {
-        Chair,
-        Stool,
-        Vase
+        [Tooltip("Child GameObject name, e.g. Cap, Lead, or Tip")]
+        public string rendererObjectName;
+
+        public Material brightMaterial;
+        public Material mediumMaterial;
+        public Material darkMaterial;
+    }
+
+    [Serializable]
+    public class ResearchObjectDefinition
+    {
+        public string objectName;
+        public GameObject prefab;
+
+        public Material brightMaterial;
+        public Material mediumMaterial;
+        public Material darkMaterial;
+
+        [Tooltip("Optional overrides for multi-part objects. Unlisted parts use the main materials.")]
+        public List<RendererMaterialOverride> rendererOverrides =
+            new List<RendererMaterialOverride>();
+
+        public LightingCondition initialLighting =
+            LightingCondition.Bright;
+    }
+
+    private class PlacedResearchObject
+    {
+        public GameObject instance;
+        public ResearchObjectDefinition definition;
+        public LightingCondition lighting;
     }
 
     [Header("AR References")]
     public ARRaycastManager raycastManager;
     public Camera arCamera;
 
-    [Header("Research Object Prefabs")]
-    public GameObject chairPrefab;
-    public GameObject stoolPrefab;
-    public GameObject vasePrefab;
-
-    [Header("Chair HDRI Materials")]
-    public Material chairBright;
-    public Material chairMedium;
-    public Material chairDark;
-
-    [Header("Stool HDRI Materials")]
-    public Material stoolBright;
-    public Material stoolMedium;
-    public Material stoolDark;
-
-    [Header("Vase HDRI Materials")]
-    public Material vaseBright;
-    public Material vaseMedium;
-    public Material vaseDark;
-
-    [Header("Initial Lighting Configuration")]
-    public LightingCondition chairLighting = LightingCondition.Bright;
-    public LightingCondition stoolLighting = LightingCondition.Medium;
-    public LightingCondition vaseLighting = LightingCondition.Dark;
+    [Header("Research Object Library")]
+    public List<ResearchObjectDefinition> researchObjects =
+        new List<ResearchObjectDefinition>();
 
     [Header("Interaction Mode")]
-    public InteractionMode currentMode = InteractionMode.Placement;
+    public InteractionMode currentMode =
+        InteractionMode.Placement;
 
     [Header("Placement Settings")]
-    public int maxPlacements = 3;
-    public float minimumUpwardAlignment = 0.8f;
-    public float verticalPlacementOffset = 0.155f;
+    [Tooltip("0 means unlimited placements.")]
+    public int maxPlacements = 0;
 
-    private readonly List<GameObject> placedObjects =
-        new List<GameObject>();
+    [Range(0f, 1f)]
+    public float minimumUpwardAlignment = 0.9f;
 
-    private GameObject selectedObject;
+    public float verticalPlacementOffset = 0f;
+
+    [Header("Collection Settings")]
+    public int collectedCount = 0;
+
+    private readonly List<PlacedResearchObject> placedObjects =
+        new List<PlacedResearchObject>();
+
+    private PlacedResearchObject selectedObject;
+
+    private int nextObjectIndex = 0;
+    private int totalPlacedCount = 0;
 
     private static readonly List<ARRaycastHit> hits =
         new List<ARRaycastHit>();
 
-    void Update()
+    public int ActiveObjectCount
+    {
+        get { return placedObjects.Count; }
+    }
+
+    public int TotalPlacedCount
+    {
+        get { return totalPlacedCount; }
+    }
+
+    public int CollectedCount
+    {
+        get { return collectedCount; }
+    }
+
+    private void Update()
     {
         if (Input.touchCount == 0)
             return;
@@ -85,55 +122,45 @@ public class ARResearchObjectPlacement : MonoBehaviour
             EventSystem.current.IsPointerOverGameObject(touch.fingerId))
             return;
 
-        if (currentMode == InteractionMode.Placement)
-            TryPlaceObject(touch.position);
-        else
-            TrySelectObject(touch.position);
+        switch (currentMode)
+        {
+            case InteractionMode.Placement:
+                TryPlaceObject(touch.position);
+                break;
+
+            case InteractionMode.Selection:
+                TrySelectObject(touch.position);
+                break;
+
+            case InteractionMode.Collection:
+                TryCollectObject(touch.position);
+                break;
+        }
     }
 
-    void TryPlaceObject(Vector2 screenPosition)
+    private void TryPlaceObject(Vector2 screenPosition)
     {
-        int placementIndex = placedObjects.Count;
-
-        if (placementIndex >= maxPlacements || placementIndex >= 3)
+        if (researchObjects == null ||
+            researchObjects.Count == 0)
         {
-            Debug.Log("Maximum research objects placed.");
+            Debug.LogWarning(
+                "No research objects configured."
+            );
+            return;
+        }
+
+        if (maxPlacements > 0 &&
+            placedObjects.Count >= maxPlacements)
+        {
+            Debug.Log("Maximum placements reached.");
             return;
         }
 
         if (raycastManager == null)
         {
-            Debug.LogWarning("AR Raycast Manager missing.");
-            return;
-        }
-
-        ResearchObjectType objectType =
-            (ResearchObjectType)placementIndex;
-
-        GameObject prefabToPlace = null;
-        LightingCondition initialLighting = LightingCondition.Bright;
-
-        switch (objectType)
-        {
-            case ResearchObjectType.Chair:
-                prefabToPlace = chairPrefab;
-                initialLighting = chairLighting;
-                break;
-
-            case ResearchObjectType.Stool:
-                prefabToPlace = stoolPrefab;
-                initialLighting = stoolLighting;
-                break;
-
-            case ResearchObjectType.Vase:
-                prefabToPlace = vasePrefab;
-                initialLighting = vaseLighting;
-                break;
-        }
-
-        if (prefabToPlace == null)
-        {
-            Debug.LogWarning("Research prefab missing.");
+            Debug.LogWarning(
+                "AR Raycast Manager missing."
+            );
             return;
         }
 
@@ -141,7 +168,9 @@ public class ARResearchObjectPlacement : MonoBehaviour
             screenPosition,
             hits,
             TrackableType.PlaneWithinPolygon))
+        {
             return;
+        }
 
         Pose hitPose = hits[0].pose;
 
@@ -149,135 +178,338 @@ public class ARResearchObjectPlacement : MonoBehaviour
             hitPose.rotation * Vector3.up;
 
         float alignment =
-            Vector3.Dot(surfaceNormal, Vector3.up);
+            Vector3.Dot(
+                surfaceNormal.normalized,
+                Vector3.up
+            );
 
         if (alignment < minimumUpwardAlignment)
             return;
+
+        ResearchObjectDefinition definition = null;
+
+        // Find the next configured prefab.
+        for (int i = 0; i < researchObjects.Count; i++)
+        {
+            int index =
+                (nextObjectIndex + i) %
+                researchObjects.Count;
+
+            if (researchObjects[index] != null &&
+                researchObjects[index].prefab != null)
+            {
+                definition = researchObjects[index];
+
+                nextObjectIndex =
+                    (index + 1) %
+                    researchObjects.Count;
+
+                break;
+            }
+        }
+
+        if (definition == null)
+        {
+            Debug.LogWarning(
+                "No valid research prefabs available."
+            );
+            return;
+        }
 
         Vector3 correctedPosition =
             hitPose.position +
             Vector3.up * verticalPlacementOffset;
 
         GameObject newObject = Instantiate(
-            prefabToPlace,
+            definition.prefab,
             correctedPosition,
             Quaternion.identity
         );
 
         newObject.SetActive(true);
 
-        placedObjects.Add(newObject);
+        PlacedResearchObject record =
+            new PlacedResearchObject
+            {
+                instance = newObject,
+                definition = definition,
+                lighting = definition.initialLighting
+            };
+
+        placedObjects.Add(record);
+        totalPlacedCount++;
 
         ApplyLighting(
-            newObject,
-            objectType,
-            initialLighting
+            record,
+            definition.initialLighting
         );
 
-        Debug.Log("Placed: " + newObject.name);
+        Debug.Log(
+            "Placed: " + definition.objectName +
+            " | Active: " + ActiveObjectCount
+        );
     }
 
-    void TrySelectObject(Vector2 screenPosition)
+    private PlacedResearchObject FindObjectAtScreenPosition(
+        Vector2 screenPosition)
     {
         if (arCamera == null)
-            return;
+            return null;
 
-        Ray ray = arCamera.ScreenPointToRay(screenPosition);
+        Ray ray =
+            arCamera.ScreenPointToRay(screenPosition);
 
-        if (Physics.Raycast(ray, out RaycastHit hit))
+        RaycastHit[] rayHits =
+            Physics.RaycastAll(ray);
+
+        Array.Sort(
+            rayHits,
+            (a, b) => a.distance.CompareTo(b.distance)
+        );
+
+        foreach (RaycastHit hit in rayHits)
         {
-            foreach (GameObject obj in placedObjects)
+            foreach (PlacedResearchObject record
+                in placedObjects)
             {
-                if (obj != null &&
-                    (hit.transform == obj.transform ||
-                     hit.transform.IsChildOf(obj.transform)))
-                {
-                    selectedObject = obj;
+                if (record.instance == null)
+                    continue;
 
-                    Debug.Log("Selected: " + obj.name);
-                    return;
+                Transform root =
+                    record.instance.transform;
+
+                if (hit.transform == root ||
+                    hit.transform.IsChildOf(root))
+                {
+                    return record;
                 }
             }
         }
+
+        return null;
     }
 
-    void ApplyLighting(
-        GameObject obj,
-        ResearchObjectType objectType,
-        LightingCondition condition)
+    private void TrySelectObject(Vector2 screenPosition)
     {
-        Material selectedMaterial = null;
+        PlacedResearchObject record =
+            FindObjectAtScreenPosition(screenPosition);
 
-        switch (objectType)
+        if (record == null)
         {
-            case ResearchObjectType.Chair:
-
-                switch (condition)
-                {
-                    case LightingCondition.Bright:
-                        selectedMaterial = chairBright;
-                        break;
-
-                    case LightingCondition.Medium:
-                        selectedMaterial = chairMedium;
-                        break;
-
-                    case LightingCondition.Dark:
-                        selectedMaterial = chairDark;
-                        break;
-                }
-                break;
-
-            case ResearchObjectType.Stool:
-
-                switch (condition)
-                {
-                    case LightingCondition.Bright:
-                        selectedMaterial = stoolBright;
-                        break;
-
-                    case LightingCondition.Medium:
-                        selectedMaterial = stoolMedium;
-                        break;
-
-                    case LightingCondition.Dark:
-                        selectedMaterial = stoolDark;
-                        break;
-                }
-                break;
-
-            case ResearchObjectType.Vase:
-
-                switch (condition)
-                {
-                    case LightingCondition.Bright:
-                        selectedMaterial = vaseBright;
-                        break;
-
-                    case LightingCondition.Medium:
-                        selectedMaterial = vaseMedium;
-                        break;
-
-                    case LightingCondition.Dark:
-                        selectedMaterial = vaseDark;
-                        break;
-                }
-                break;
-        }
-
-        if (selectedMaterial == null)
-        {
-            Debug.LogWarning("HDRI material missing.");
+            Debug.Log("No research object selected.");
             return;
         }
 
-        Renderer renderer = obj.GetComponentInChildren<Renderer>();
+        selectedObject = record;
 
-        if (renderer != null)
-            renderer.sharedMaterial = selectedMaterial;
+        Debug.Log(
+            "Selected: " +
+            record.definition.objectName
+        );
+    }
+
+    private void TryCollectObject(Vector2 screenPosition)
+    {
+        PlacedResearchObject record =
+            FindObjectAtScreenPosition(screenPosition);
+
+        if (record == null)
+        {
+            Debug.Log("No research object to collect.");
+            return;
+        }
+
+        CollectObject(record);
+    }
+
+    private void CollectObject(
+        PlacedResearchObject record)
+    {
+        if (record == null ||
+            record.instance == null)
+            return;
+
+        string collectedName =
+            record.definition.objectName;
+
+        if (selectedObject == record)
+            selectedObject = null;
+
+        placedObjects.Remove(record);
+
+        Destroy(record.instance);
+
+        collectedCount++;
+
+        Debug.Log(
+            "Collected: " + collectedName +
+            " | Total Collected: " + collectedCount +
+            " | Remaining: " + ActiveObjectCount
+        );
+    }
+
+    // Select the material corresponding to the lighting condition.
+    private static Material GetLightingMaterial(
+        Material bright,
+        Material medium,
+        Material dark,
+        LightingCondition condition)
+    {
+        switch (condition)
+        {
+            case LightingCondition.Bright:
+                return bright;
+
+            case LightingCondition.Medium:
+                return medium;
+
+            case LightingCondition.Dark:
+                return dark;
+
+            default:
+                return bright;
+        }
+    }
+
+    // Apply lighting while supporting individual mesh materials.
+    private void ApplyLighting(
+        PlacedResearchObject record,
+        LightingCondition condition)
+    {
+        if (record == null ||
+            record.instance == null ||
+            record.definition == null)
+        {
+            return;
+        }
+
+        ResearchObjectDefinition definition =
+            record.definition;
+
+        Material mainMaterial = GetLightingMaterial(
+            definition.brightMaterial,
+            definition.mediumMaterial,
+            definition.darkMaterial,
+            condition
+        );
+
+        if (mainMaterial == null)
+        {
+            Debug.LogWarning(
+                "HDRI material missing for " +
+                definition.objectName
+            );
+
+            return;
+        }
+
+        Renderer[] renderers =
+            record.instance.GetComponentsInChildren<Renderer>(true);
+
+        foreach (Renderer renderer in renderers)
+        {
+            Material chosenMaterial = mainMaterial;
+
+            // Check whether this mesh has its own materials.
+            if (definition.rendererOverrides != null)
+            {
+                foreach (RendererMaterialOverride entry
+                    in definition.rendererOverrides)
+                {
+                    if (entry == null ||
+                        string.IsNullOrEmpty(entry.rendererObjectName) ||
+                        entry.rendererObjectName != renderer.gameObject.name)
+                    {
+                        continue;
+                    }
+
+                    chosenMaterial = GetLightingMaterial(
+                        entry.brightMaterial,
+                        entry.mediumMaterial,
+                        entry.darkMaterial,
+                        condition
+                    );
+
+                    break;
+                }
+            }
+
+            if (chosenMaterial == null)
+            {
+                Debug.LogWarning(
+                    "Missing " + condition +
+                    " material for " +
+                    definition.objectName +
+                    " / " + renderer.gameObject.name
+                );
+
+                continue;
+            }
+
+            Material[] materials =
+                renderer.sharedMaterials;
+
+            for (int i = 0; i < materials.Length; i++)
+            {
+                materials[i] = chosenMaterial;
+            }
+
+            renderer.sharedMaterials = materials;
+        }
+
+        record.lighting = condition;
     }
 
     public void SetSelectedLighting(int lightingIndex)
+    {
+        if (selectedObject == null ||
+            selectedObject.instance == null)
+        {
+            Debug.Log("Select an object first.");
+            return;
+        }
+
+        if (lightingIndex < 0 ||
+            lightingIndex > 2)
+        {
+            return;
+        }
+
+        LightingCondition condition =
+            (LightingCondition)lightingIndex;
+
+        ApplyLighting(
+            selectedObject,
+            condition
+        );
+
+        Debug.Log(
+            "Lighting changed to: " + condition
+        );
+    }
+
+    public void EnablePlacementMode()
+    {
+        currentMode = InteractionMode.Placement;
+
+        Debug.Log("Placement Mode Enabled");
+    }
+
+    public void EnableSelectionMode()
+    {
+        currentMode = InteractionMode.Selection;
+
+        Debug.Log("Selection Mode Enabled");
+    }
+
+    public void EnableCollectionMode()
+    {
+        currentMode = InteractionMode.Collection;
+
+        Debug.Log("Collection Mode Enabled");
+    }
+
+    public void CollectSelectedObject()
     {
         if (selectedObject == null)
         {
@@ -285,52 +517,26 @@ public class ARResearchObjectPlacement : MonoBehaviour
             return;
         }
 
-        if (lightingIndex < 0 || lightingIndex > 2)
-            return;
-
-        LightingCondition condition =
-            (LightingCondition)lightingIndex;
-
-        int objectIndex =
-            placedObjects.IndexOf(selectedObject);
-
-        if (objectIndex < 0 || objectIndex >= 3)
-            return;
-
-        ResearchObjectType objectType =
-            (ResearchObjectType)objectIndex;
-
-        ApplyLighting(
-            selectedObject,
-            objectType,
-            condition
-        );
-
-        Debug.Log("Lighting changed to: " + condition);
-    }
-
-    public void EnablePlacementMode()
-    {
-        currentMode = InteractionMode.Placement;
-        Debug.Log("Placement Mode Enabled");
-    }
-
-    public void EnableSelectionMode()
-    {
-        currentMode = InteractionMode.Selection;
-        Debug.Log("Selection Mode Enabled");
+        CollectObject(selectedObject);
     }
 
     public void ResetResearchPlacement()
     {
-        foreach (GameObject obj in placedObjects)
+        foreach (PlacedResearchObject record
+            in placedObjects)
         {
-            if (obj != null)
-                Destroy(obj);
+            if (record.instance != null)
+            {
+                Destroy(record.instance);
+            }
         }
 
         placedObjects.Clear();
+
         selectedObject = null;
+        nextObjectIndex = 0;
+        totalPlacedCount = 0;
+        collectedCount = 0;
 
         currentMode = InteractionMode.Placement;
 
